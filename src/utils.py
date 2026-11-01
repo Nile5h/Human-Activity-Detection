@@ -5,19 +5,39 @@ GREEN_COLOR = (0, 255, 0)
 
 
 def draw_line(image, p1, p2, color):
+    p1 = (int(p1[0]), int(p1[1]))
+    p2 = (int(p2[0]), int(p2[1]))
     cv2.line(image, p1, p2, color, thickness=2, lineType=cv2.LINE_AA)
 
 
-def find_person_indicies(scores):
-    return [i for i, s in enumerate(scores) if s > 0.9]
+def draw_point(image, point):
+    cv2.circle(
+        image,
+        (int(point[0]), int(point[1])),
+        4,
+        WHITE_COLOR,
+        -1,
+    )
 
 
-def filter_persons(outputs):
+def find_person_indicies(scores, score_threshold=0.9):
+    return [i for i, s in enumerate(scores) if s > score_threshold]
+
+
+def filter_persons(results, score_threshold=0.9):
+    if not results:
+        return ({}, [])
+
+    result = results[0]
+    if result.boxes is None or result.keypoints is None:
+        return ({}, [])
+
     persons = {}
-    p_indicies = find_person_indicies(outputs["instances"].scores)
+    scores = result.boxes.conf.cpu().numpy()
+    p_indicies = find_person_indicies(scores, score_threshold)
+    keypoints = result.keypoints.xy.cpu().numpy()
     for x in p_indicies:
-        desired_kp = outputs["instances"].pred_keypoints[x][:].to("cpu")
-        persons[x] = desired_kp
+        persons[x] = keypoints[x]
     return (persons, p_indicies)
 
 
@@ -62,17 +82,8 @@ def draw_keypoints(person, img):
     draw_line(img, (r_knee[0], r_knee[1]),
               (r_ankle[0], r_ankle[1]), GREEN_COLOR)
 
-    cv2.circle(img, (l_eye[0], l_eye[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_eye[0], r_eye[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (l_wrist[0], l_wrist[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_wrist[0], r_wrist[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (l_shoulder[0], l_shoulder[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_shoulder[0], r_shoulder[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (l_elbow[0], l_elbow[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_elbow[0], r_elbow[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (l_hip[0], l_hip[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_hip[0], r_hip[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (l_knee[0], l_knee[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_knee[0], r_knee[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (l_ankle[0], l_ankle[1]), 4, WHITE_COLOR, -1)
-    cv2.circle(img, (r_ankle[0], r_ankle[1]), 4, WHITE_COLOR, -1)
+    for point in (
+        l_eye, r_eye, l_wrist, r_wrist, l_shoulder, r_shoulder,
+        l_elbow, r_elbow, l_hip, r_hip, l_knee, r_knee, l_ankle, r_ankle,
+    ):
+        draw_point(img, point)

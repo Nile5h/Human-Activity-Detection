@@ -3,13 +3,13 @@
 # 🏃 Human Activity Recognition — 2D Pose + LSTM RNN
 
 [![Python](https://img.shields.io/badge/Python-3.7+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![TensorFlow](https://img.shields.io/badge/TensorFlow-1.x-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white)](https://www.tensorflow.org/)
-[![LSTM](https://img.shields.io/badge/LSTM-2%20Stacked%20Layers-9B59B6?style=for-the-badge)]()
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![LSTM](https://img.shields.io/badge/LSTM-PyTorch-9B59B6?style=for-the-badge)]()
 [![Accuracy](https://img.shields.io/badge/Accuracy->90%25-brightgreen?style=for-the-badge)]()
 [![ngrok](https://img.shields.io/badge/Deployed-ngrok-1F8ACB?style=for-the-badge)]()
 [![License](https://img.shields.io/badge/License-MIT-1abc9c?style=for-the-badge)](../LICENSE.md)
 
-> Classifies **6 human activities** from **2D pose time series** (OpenPose keypoints) using a **2-layer stacked LSTM RNN** built in TensorFlow 1.x — achieving **>90% accuracy** in ~7 minutes of training. Deployed via ngrok with a Flask web app and `sample_video.mp4` demo.
+> Classifies **6 human activities** from **2D pose time series** using an LSTM RNN. The Flask application extracts COCO-format keypoints with an Ultralytics YOLO pose model, then classifies 32-frame windows with the LSTM.
 
 [🔙 Back to Main Repository](https://github.com/shsarv/Machine-Learning-Projects)
 
@@ -34,7 +34,25 @@
 
 ## 🔬 About the Project
 
-This experiment classifies human activities using **2D pose time series data** and a **stacked LSTM RNN**. Rather than feeding raw RGB images or expensive 3D pose data into the network, it uses **2D (x, y) keypoints** extracted from video frames via OpenPose — a much lighter and more accessible input representation.
+This experiment classifies human activities using **2D pose time series data** and a **stacked LSTM RNN**. Rather than feeding raw RGB images or expensive 3D pose data into the network, it uses **2D (x, y) keypoints** extracted from video frames with an Ultralytics YOLO pose model — a much lighter and more accessible input representation.
+
+The deployed application uses the following pipeline:
+
+```
+Video frame
+    │
+    ▼
+Ultralytics YOLO pose model (yolo11n-pose.pt)
+    │
+    ▼
+17 COCO keypoints × (x, y) coordinates
+    │
+    ▼
+32-frame sliding window
+    │
+    ▼
+PyTorch Lightning LSTM → activity class
+```
 
 The core research questions:
 
@@ -52,8 +70,8 @@ The network architecture is based on Guillaume Chevalier's *LSTMs for Human Acti
 Raw Video Frame (640×480 RGB)
         │
         ▼
-   OpenPose Inference
-   18 body keypoints × (x, y) coords
+   Ultralytics YOLO Pose Inference
+   17 COCO body keypoints × (x, y) coords
         │
         ▼
    36-dimensional feature vector per frame
@@ -76,7 +94,7 @@ Raw Video Frame (640×480 RGB)
 
 | Property | Details |
 |----------|---------|
-| **Source** | Berkeley Multimodal Human Action Database (MHAD) — 2D poses extracted via OpenPose |
+| **Source** | Berkeley Multimodal Human Action Database (MHAD) — pose sequences converted to the COCO 17-keypoint format |
 | **Download** | `RNN-HAR-2D-Pose-database.zip` (~19.2 MB, Google Drive) |
 | **Subjects** | 12 |
 | **Angles** | 4 camera angles |
@@ -117,25 +135,17 @@ RNN-HAR-2D-Pose-database/
 Input: (batch_size, 32 timesteps, 36 features)
              │
              ▼
-  Linear projection: 36 → 34 (ReLU)
-             │
-             ▼
-  ┌──────────────────────────────────┐
-  │  BasicLSTMCell(34, forget_bias=1)│  ← Layer 1
-  ├──────────────────────────────────┤
-  │  BasicLSTMCell(34, forget_bias=1)│  ← Layer 2
-  └──────────────────────────────────┘
-  tf.contrib.rnn.MultiRNNCell (stacked)
-  tf.contrib.rnn.static_rnn (many-to-one)
+  PyTorch LSTM
+  (hidden dimension: 50)
              │
         Last output only
              │
              ▼
-  Linear: 34 → 6
+  Linear: 50 → 6
   Softmax → Activity class
 ```
 
-> **Why n_hidden = 34?** Testing across a range of hidden unit counts showed best generalisation when hidden units ≈ n_input (36). 34 was found to be optimal.
+> The deployed checkpoint uses a hidden dimension of 50.
 
 > **Many-to-one classifier** — only the last LSTM output (timestep 32) is used for classification, not the full sequence output.
 
@@ -145,10 +155,10 @@ Input: (batch_size, 32 timesteps, 36 features)
 
 | Parameter | Value |
 |-----------|-------|
-| Framework | TensorFlow 1.x (`%tensorflow_version 1.x`) |
+| Framework | PyTorch and PyTorch Lightning |
 | Timesteps (`n_steps`) | 32 |
 | Input features (`n_input`) | 36 (18 keypoints × x, y) |
-| Hidden units (`n_hidden`) | 34 |
+| Hidden units (`n_hidden`) | 50 |
 | Classes (`n_classes`) | 6 |
 | Epochs | 300 |
 | Batch size | 512 |
@@ -234,12 +244,17 @@ venv\Scripts\activate           # Windows
 pip install -r requirements.txt
 ```
 
-> ⚠️ **TensorFlow 1.x required.** The LSTM uses `tf.contrib.rnn` and `tf.placeholder` APIs from TF1.
-> ```bash
-> pip install tensorflow==1.15.0
-> ```
+> `ultralytics` downloads `yolo11n-pose.pt` automatically the first time the Flask application starts. The model file is not committed to the repository.
 
-### 3. Download the dataset
+### 3. Run the Flask application
+
+```bash
+python app.py
+```
+
+Open `http://127.0.0.1:5000` in a browser, upload an `.mp4` video, or run the included sample video.
+
+### 4. Download the dataset
 
 The dataset is downloaded automatically in the notebook:
 ```python
@@ -248,7 +263,7 @@ The dataset is downloaded automatically in the notebook:
 !unzip RNN-HAR-2D-Pose-database.zip
 ```
 
-### 4. Run on Google Colab (recommended)
+### 5. Run on Google Colab (recommended)
 
 ```
 1. Open Human_Activity_Recogination.ipynb in Google Colab
@@ -256,7 +271,7 @@ The dataset is downloaded automatically in the notebook:
 3. Run all cells — training completes in ~7 minutes
 ```
 
-### 5. Deploy with ngrok
+### 6. Deploy with ngrok
 
 ```
 Open Human_Action_Classification_deployment_with_ngrok.ipynb
@@ -270,9 +285,9 @@ Follow the ngrok setup cells to expose the Flask app publicly
 | Layer | Technology |
 |-------|-----------|
 | Language | Python 3.7+ |
-| Deep Learning | TensorFlow 1.x (`tf.contrib.rnn`) |
-| Model | 2-layer stacked LSTM (`BasicLSTMCell`) |
-| Pose Extraction | OpenPose (CMU Perceptual Computing Lab) |
+| Deep Learning | PyTorch and PyTorch Lightning |
+| Classifier | PyTorch LSTM |
+| Pose Extraction | Ultralytics YOLO pose model (COCO 17-keypoint format) |
 | Data Processing | NumPy |
 | Visualization | Matplotlib |
 | Web Framework | Flask |
@@ -285,7 +300,7 @@ Follow the ngrok setup cells to expose the Flask app publicly
 
 - Guillaume Chevalier (2016). *LSTMs for Human Activity Recognition.* [github.com/guillaume-chevalier](https://github.com/guillaume-chevalier/LSTM-Human-Activity-Recognition) — MIT License
 - [Berkeley MHAD Dataset](http://tele-immersion.citris-uc.org/berkeley_mhad)
-- [OpenPose — CMU Perceptual Computing Lab](https://github.com/CMU-Perceptual-Computing-Lab/openpose)
+- [Ultralytics YOLO Documentation](https://docs.ultralytics.com/)
 - Goodfellow et al. *"It has been observed in practice that when using a larger batch there is a significant degradation in the quality of the model..."* — basis for small batch strategy
 - [Andrej Karpathy — The Unreasonable Effectiveness of RNNs](http://karpathy.github.io/2015/05/21/rnn-effectiveness/) — referenced for many-to-one classifier design
 

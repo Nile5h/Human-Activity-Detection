@@ -42,7 +42,7 @@ def analyse_video(pose_detector, lstm_classifier, video_path):
         file_name), fourcc, 30, (width, height))
     # counter
     counter = 0
-    # buffer to keep the output of detectron2 pose estimation
+    # buffer to keep the output of Ultralytics pose estimation
     buffer_window = []
     # start time
     start = time.time()
@@ -58,7 +58,7 @@ def analyse_video(pose_detector, lstm_classifier, video_path):
         img = frame.copy()
         if(counter % (SKIP_FRAME_COUNT+1) == 0):
             # predict pose estimation on the frame
-            outputs = pose_detector(frame)
+            outputs = pose_detector(frame, conf=0.5, verbose=False)
             # filter the outputs with a good confidence score
             persons, pIndicies = filter_persons(outputs)
             if len(persons) >= 1:
